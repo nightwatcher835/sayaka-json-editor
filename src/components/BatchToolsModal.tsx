@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { CardDocument } from '../types/card';
 import { isTcgPlayerIdEmpty } from '../utils/cardUtils';
+import { findDuplicateTcgPlayerIds } from '../utils/searchIndex';
 import {
   Wrench,
   X,
@@ -9,7 +10,8 @@ import {
   Layers,
   CheckCircle2,
   AlertCircle,
-  BarChart3
+  BarChart3,
+  Copy
 } from 'lucide-react';
 
 interface BatchToolsModalProps {
@@ -266,7 +268,8 @@ export const BatchToolsModal: React.FC<BatchToolsModalProps> = ({
           {/* Aba 1: Estatísticas */}
           {activeTab === 'stats' && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {/* Estatísticas com TCG Vazio e TCG Repetido */}
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
                 <div className="bg-zinc-950 p-3 rounded-lg border border-zinc-800">
                   <span className="text-[10px] text-zinc-500 uppercase font-mono">Total Cartas</span>
                   <div className="text-xl font-bold text-zinc-100 font-mono mt-0.5">
@@ -286,12 +289,38 @@ export const BatchToolsModal: React.FC<BatchToolsModalProps> = ({
                   </div>
                 </div>
                 <div className="bg-zinc-950 p-3 rounded-lg border border-zinc-800">
+                  <span className="text-[10px] text-zinc-500 uppercase font-mono">TCG Repetidos</span>
+                  <div className={`text-xl font-bold font-mono mt-0.5 ${findDuplicateTcgPlayerIds(cards).size > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                    {findDuplicateTcgPlayerIds(cards).size.toLocaleString()}
+                  </div>
+                </div>
+                <div className="bg-zinc-950 p-3 rounded-lg border border-zinc-800">
                   <span className="text-[10px] text-zinc-500 uppercase font-mono">Média Var/Carta</span>
                   <div className="text-xl font-bold text-zinc-200 font-mono mt-0.5">
                     {totalCards > 0 ? (totalVariants / totalCards).toFixed(1) : '0'}
                   </div>
                 </div>
               </div>
+
+              {/* Lista de TCGPlayer IDs repetidos se houver */}
+              {findDuplicateTcgPlayerIds(cards).size > 0 && (
+                <div className="bg-rose-950/20 p-3 rounded-lg border border-rose-900/30 text-xs space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-rose-300 font-semibold text-xs">
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>TCGPlayer IDs que aparecem mais de uma vez:</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pt-1">
+                    {Array.from(findDuplicateTcgPlayerIds(cards)).map((dupId) => (
+                      <span
+                        key={dupId}
+                        className="px-2 py-0.5 bg-rose-950/60 border border-rose-800/60 rounded text-[11px] font-mono text-rose-200"
+                      >
+                        {dupId}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="bg-zinc-950/60 p-3.5 rounded-lg border border-zinc-800/80 space-y-2 text-xs">
                 <h4 className="font-semibold text-zinc-300 text-xs flex items-center gap-1.5">

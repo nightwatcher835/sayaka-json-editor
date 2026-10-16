@@ -1,12 +1,13 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { CardDocument } from '../types/card';
 import { isTcgPlayerIdEmpty } from '../utils/cardUtils';
-import { AlertCircle, Layers } from 'lucide-react';
+import { AlertCircle, Layers, Copy } from 'lucide-react';
 
 interface VirtualCardListProps {
   cards: CardDocument[];
   selectedId: string | null;
   dirtyIds: Set<string>;
+  duplicateTcgSet?: Set<string>;
   onSelectCard: (card: CardDocument) => void;
   itemHeight?: number;
 }
@@ -15,6 +16,7 @@ export const VirtualCardList: React.FC<VirtualCardListProps> = ({
   cards,
   selectedId,
   dirtyIds,
+  duplicateTcgSet,
   onSelectCard,
   itemHeight = 44,
 }) => {
@@ -118,6 +120,15 @@ export const VirtualCardList: React.FC<VirtualCardListProps> = ({
           const isDirty = dirtyIds.has(card._id);
           const varCount = card.variants?.length || 0;
           const hasEmptyTcg = card.variants?.some((v) => isTcgPlayerIdEmpty(v)) || varCount === 0;
+          const hasDuplicateTcg = Boolean(
+            duplicateTcgSet &&
+            duplicateTcgSet.size > 0 &&
+            card.variants?.some((v) => {
+              if (!v.tcgplayerId) return false;
+              const str = String(v.tcgplayerId).trim();
+              return duplicateTcgSet.has(str);
+            })
+          );
           const cardId = card.id || card.code || '-';
 
           return (
@@ -160,6 +171,14 @@ export const VirtualCardList: React.FC<VirtualCardListProps> = ({
 
               {/* Tags / Variantes */}
               <div className="flex items-center gap-1.5 flex-shrink-0">
+                {hasDuplicateTcg && (
+                  <span
+                    title="Contém variante com TCGPlayer ID repetido em outros registros da coleção"
+                    className="flex items-center text-rose-400 text-[10px]"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                  </span>
+                )}
                 {hasEmptyTcg && (
                   <span
                     title="Contém variante com TCGPlayer ID vazio"

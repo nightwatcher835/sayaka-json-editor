@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { CardDocument, FileMetadata } from './types/card';
-import { buildCardIndex, filterIndexedCards, IndexedCard } from './utils/searchIndex';
+import { buildCardIndex, filterIndexedCards, findDuplicateTcgPlayerIds, IndexedCard } from './utils/searchIndex';
 import { parseJsonFile } from './utils/fileProcessor';
-import { cloneCard, generateObjectId, formatBytes } from './utils/cardUtils';
+import { formatBytes } from './utils/cardUtils';
 import { VirtualCardList } from './components/VirtualCardList';
 import { CardEditor } from './components/CardEditor';
 import { JsonModal } from './components/JsonModal';
@@ -12,7 +12,6 @@ import {
   Upload,
   Download,
   Search,
-  Plus,
   Wrench,
   FileJson,
   Check,
@@ -30,6 +29,7 @@ export default function App() {
   // Busca e Filtros
   const [searchTerm, setSearchTerm] = useState('');
   const [missingTcgOnly, setMissingTcgOnly] = useState(false);
+  const [duplicateTcgOnly, setDuplicateTcgOnly] = useState(false);
   const [searchTimeMs, setSearchTimeMs] = useState(0);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
 
@@ -66,19 +66,24 @@ export default function App() {
     }, 3000);
   }, []);
 
+  // Identifica TCGPlayer IDs repetidos no conjunto inteiro
+  const duplicateTcgSet = useMemo(() => {
+    return findDuplicateTcgPlayerIds(cards);
+  }, [cards]);
+
   // Constrói índice de busca memoizado
   const cardIndex: IndexedCard[] = useMemo(() => {
-    return buildCardIndex(cards);
-  }, [cards]);
+    return buildCardIndex(cards, duplicateTcgSet);
+  }, [cards, duplicateTcgSet]);
 
   // Lista filtrada com medição de performance em milissegundos
   const filteredCards = useMemo(() => {
     const t0 = performance.now();
-    const result = filterIndexedCards(cardIndex, searchTerm, missingTcgOnly);
+    const result = filterIndexedCards(cardIndex, searchTerm, missingTcgOnly, duplicateTcgOnly);
     const t1 = performance.now();
     setSearchTimeMs(Math.round((t1 - t0) * 10) / 10);
     return result;
-  }, [cardIndex, searchTerm, missingTcgOnly]);
+  }, [cardIndex, searchTerm, missingTcgOnly, duplicateTcgOnly]);
 
   // Documento selecionado ativo
   const currentCard = useMemo(() => {
@@ -113,6 +118,7 @@ export default function App() {
       setSelectedCardId(loadedCards[0]?._id || null);
       setSearchTerm('');
       setMissingTcgOnly(false);
+      setDuplicateTcgOnly(false);
       setStatusMessage(`Pronto (${loadedCards.length.toLocaleString()} cartas carregadas)`);
       showToast(`Arquivo "${file.name}" carregado com sucesso!`);
     } catch (err: any) {
@@ -166,80 +172,6 @@ export default function App() {
     });
     setStatusMessage(`Salvo: ${updatedCard.name || updatedCard.id}`);
     showToast(`"${updatedCard.name || 'Carta'}" atualizada com sucesso!`);
-  };
-
-  // Criar nova carta (equivalente a nova_carta() no PyQt)
-  const handleCreateNewCard = () => {
-    const newCard: CardDocument = {
-      _id: generateObjectId(),
-      id: `CARD-${cards.length + 1}`,
-      code: 'NEW-001',
-      name: 'Nova Carta',
-      images: {
-        small: '',
-        large: '',
-      },
-      variants: [],
-    };
-
-    setCards((prev) => [newCard, ...prev]);
-    setSelectedCardId(newCard._id);
-    setDirtyIds((prev) => {
-      const next = new Set(prev);
-      next.add(newCard._id);
-      return next;
-    });
-
-    if (cards.length === 0) {
-      setFileMeta((prev) => ({
-        ...prev,
-        fileName: 'nova_colecao.json',
-      }));
-    }
-
-    setStatusMessage('Nova carta criada');
-    showToast('Novo documento de carta criado!');
-  };
-
-  // Duplicar carta
-  const handleDuplicateCard = (cardToDuplicate: CardDocument) => {
-    const duplicated: CardDocument = cloneCard(cardToDuplicate);
-    duplicated._id = generateObjectId();
-    duplicated.id = `${duplicated.id || 'CARD'}-COPY`;
-    duplicated.name = `${duplicated.name || 'Carta'} (Cópia)`;
-
-    setCards((prev) => [duplicated, ...prev]);
-    setSelectedCardId(duplicated._id);
-    setDirtyIds((prev) => {
-      const next = new Set(prev);
-      next.add(duplicated._id);
-      return next;
-    });
-    setStatusMessage(`Carta duplicada: ${duplicated.name}`);
-    showToast('Carta duplicada como novo documento!');
-  };
-
-  // Excluir carta
-  const handleDeleteCard = (cardId: string) => {
-    const cardToDelete = cards.find((c) => c._id === cardId);
-    if (!confirm(`Excluir definitivamente "${cardToDelete?.name || 'esta carta'}"?`)) {
-      return;
-    }
-
-    setCards((prev) => prev.filter((c) => c._id !== cardId));
-    setDirtyIds((prev) => {
-      const next = new Set(prev);
-      next.delete(cardId);
-      return next;
-    });
-
-    if (selectedCardId === cardId) {
-      const remaining = cards.filter((c) => c._id !== cardId);
-      setSelectedCardId(remaining[0]?._id || null);
-    }
-
-    setStatusMessage('Carta excluída');
-    showToast('Documento removido da coleção.');
   };
 
   // Aplicar edições em massa
@@ -300,12 +232,12 @@ export default function App() {
         {/* Identidade do App e status do arquivo */}
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/20 text-white font-black text-sm">
-            CJ
+            SJ
           </div>
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-sm font-bold text-zinc-100 tracking-tight">
-                Cardumy JSON Studio
+                Sayaka JSON Editor
               </h1>
               <span className="px-1.5 py-0.5 rounded text-[10px] bg-blue-500/20 text-blue-300 font-mono">
                 v2.0 Turbo
@@ -414,23 +346,14 @@ export default function App() {
               Arraste e solte o seu arquivo JSON aqui, ou clique no botão abaixo para carregar sua coleção de cartas e variantes.
             </p>
 
-            <div className="flex flex-col sm:flex-row items-center gap-3 w-full">
+            <div className="w-full">
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="w-full flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-lg shadow-blue-600/20 transition-all cursor-pointer"
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-lg shadow-blue-600/20 transition-all cursor-pointer"
               >
                 <Upload className="w-4 h-4" />
                 <span>Carregar Arquivo JSON</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleCreateNewCard}
-                className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold border border-zinc-700 transition-colors cursor-pointer"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Nova Carta</span>
               </button>
             </div>
 
@@ -447,56 +370,69 @@ export default function App() {
         <div className="flex-1 flex overflow-hidden">
           {/* Painel Esquerdo: Busca, Filtro e Lista de Documentos */}
           <aside className="w-80 md:w-96 border-r border-zinc-800 bg-zinc-950 flex flex-col flex-shrink-0">
-            {/* Caixa de Busca e Botão Nova Carta */}
+            {/* Caixa de Busca */}
             <div className="p-3 border-b border-zinc-800/80 space-y-2 bg-zinc-900/40">
-              <div className="flex items-center gap-1.5">
-                <div className="relative flex-1">
-                  <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    placeholder="ID, nome, code..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-md pl-8 pr-7 py-1.5 text-zinc-200 text-xs placeholder:text-zinc-500 focus:outline-none focus:border-blue-500 font-medium"
-                  />
-                  {searchTerm && (
-                    <button
-                      type="button"
-                      onClick={() => setSearchTerm('')}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 text-xs"
-                    >
-                      ×
-                    </button>
-                  )}
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleCreateNewCard}
-                  title="Criar novo documento de carta"
-                  className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-600/90 hover:bg-blue-600 text-white rounded-md text-xs font-semibold shadow-sm transition-colors cursor-pointer flex-shrink-0"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Nova</span>
-                </button>
+              <div className="relative w-full">
+                <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="ID, nome, code..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-md pl-8 pr-7 py-1.5 text-zinc-200 text-xs placeholder:text-zinc-500 focus:outline-none focus:border-blue-500 font-medium"
+                />
+                {searchTerm && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchTerm('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 text-xs"
+                  >
+                    ×
+                  </button>
+                )}
               </div>
 
-              {/* Checkbox de TCGPlayer ID Vazio */}
-              <div className="flex items-center justify-between pt-0.5">
-                <label
-                  className="flex items-center gap-2 text-xs text-zinc-400 hover:text-zinc-200 cursor-pointer select-none"
-                  title="Mostrar apenas documentos com alguma variant cujo tcgplayerId seja null ou vazio."
-                >
-                  <input
-                    type="checkbox"
-                    checked={missingTcgOnly}
-                    onChange={(e) => setMissingTcgOnly(e.target.checked)}
-                    className="rounded bg-zinc-950 border-zinc-800 text-blue-600 focus:ring-0 focus:ring-offset-0"
-                  />
-                  <span className={missingTcgOnly ? 'text-amber-400 font-semibold' : ''}>
-                    TCGPlayer ID vazio
-                  </span>
-                </label>
+              {/* Checkboxes de Filtro: TCG Vazio e TCG Repetido */}
+              <div className="flex items-center justify-between pt-1 gap-1.5 flex-wrap">
+                <div className="flex items-center gap-3">
+                  <label
+                    className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-200 cursor-pointer select-none"
+                    title="Mostrar apenas cartas com alguma variante com TCGPlayer ID vazio"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={missingTcgOnly}
+                      onChange={(e) => setMissingTcgOnly(e.target.checked)}
+                      className="rounded bg-zinc-950 border-zinc-800 text-blue-600 focus:ring-0 focus:ring-offset-0"
+                    />
+                    <span className={missingTcgOnly ? 'text-amber-400 font-semibold' : ''}>
+                      TCG vazio
+                    </span>
+                  </label>
+
+                  <label
+                    className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-200 cursor-pointer select-none"
+                    title="Mostrar apenas cartas que possuem TCGPlayer ID repetido em outros registros"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={duplicateTcgOnly}
+                      onChange={(e) => setDuplicateTcgOnly(e.target.checked)}
+                      className="rounded bg-zinc-950 border-zinc-800 text-rose-600 focus:ring-0 focus:ring-offset-0"
+                    />
+                    <span className={duplicateTcgOnly ? 'text-rose-400 font-semibold' : ''}>
+                      TCG repetido
+                    </span>
+                    {duplicateTcgSet.size > 0 && (
+                      <span
+                        title={`${duplicateTcgSet.size} TCGPlayer IDs distintos repetidos`}
+                        className="px-1.5 py-0.2 bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[10px] rounded-full font-mono font-bold"
+                      >
+                        {duplicateTcgSet.size}
+                      </span>
+                    )}
+                  </label>
+                </div>
 
                 {/* Indicador de Latência de Busca */}
                 <span className="text-[10px] text-zinc-500 font-mono">
@@ -510,6 +446,7 @@ export default function App() {
               cards={filteredCards}
               selectedId={selectedCardId}
               dirtyIds={dirtyIds}
+              duplicateTcgSet={duplicateTcgSet}
               onSelectCard={(card) => {
                 setSelectedCardId(card._id);
                 setStatusMessage(`Carta carregada: ${card.name || card.id}`);
@@ -532,9 +469,8 @@ export default function App() {
             <CardEditor
               card={currentCard}
               isDirty={currentCard ? dirtyIds.has(currentCard._id) : false}
+              duplicateTcgSet={duplicateTcgSet}
               onSave={handleSaveCard}
-              onDelete={handleDeleteCard}
-              onDuplicate={handleDuplicateCard}
               onOpenRawJson={() => setIsJsonModalOpen(true)}
             />
           </main>

@@ -1,21 +1,21 @@
 import React from 'react';
 import { CardVariant } from '../types/card';
 import { getJustNameKey, toNumber, toText } from '../utils/cardUtils';
-import { Trash2, AlertCircle, DollarSign, Tag, Layers } from 'lucide-react';
+import { AlertCircle, AlertTriangle, DollarSign, Tag, Layers, Copy } from 'lucide-react';
 
 interface VariantEditorProps {
   variant: CardVariant;
   index: number;
   total: number;
+  isDuplicateTcg?: boolean;
   onChange: (updated: CardVariant) => void;
-  onRemove: () => void;
 }
 
 export const VariantEditor: React.FC<VariantEditorProps> = ({
   variant,
   index,
+  isDuplicateTcg = false,
   onChange,
-  onRemove,
 }) => {
   const justnameKey = getJustNameKey(variant);
   const set = variant.set || {};
@@ -44,14 +44,16 @@ export const VariantEditor: React.FC<VariantEditorProps> = ({
   return (
     <div
       className={`rounded-lg border transition-all text-xs p-3.5 mb-2.5 ${
-        isTcgEmpty
+        isDuplicateTcg
+          ? 'bg-rose-950/20 border-rose-500/40 hover:border-rose-500/60 shadow-sm'
+          : isTcgEmpty
           ? 'bg-zinc-900/90 border-amber-500/30 hover:border-amber-500/50 shadow-sm'
           : 'bg-zinc-900/60 border-zinc-800 hover:border-zinc-700'
       }`}
     >
       {/* Header da Variante */}
       <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-zinc-800/60">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="w-5 h-5 rounded flex items-center justify-center font-bold text-[10px] bg-zinc-800 text-zinc-300">
             {index}
           </span>
@@ -63,23 +65,25 @@ export const VariantEditor: React.FC<VariantEditorProps> = ({
               • {set.name}
             </span>
           )}
-          {isTcgEmpty && (
+
+          {/* Tag de Duplicado (Prioridade máxima de atenção) */}
+          {isDuplicateTcg && (
+            <span
+              title="Este TCGPlayer ID aparece mais de uma vez na coleção"
+              className="flex items-center gap-1 text-rose-300 text-[11px] bg-rose-500/20 px-1.5 py-0.5 rounded border border-rose-500/40 font-medium"
+            >
+              <Copy className="w-3 h-3 text-rose-400" />
+              TCGPlayer ID repetido
+            </span>
+          )}
+
+          {/* Tag de Vazio */}
+          {isTcgEmpty && !isDuplicateTcg && (
             <span className="flex items-center gap-1 text-amber-400 text-[11px] bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/20 font-medium">
               <AlertCircle className="w-3 h-3" />
               TCGPlayer ID pendente
             </span>
           )}
-        </div>
-
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={onRemove}
-            title="Remover variante"
-            className="p-1 text-zinc-400 hover:text-rose-400 hover:bg-rose-950/40 rounded transition-colors"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
         </div>
       </div>
 
@@ -136,7 +140,9 @@ export const VariantEditor: React.FC<VariantEditorProps> = ({
                 value={toText(variant.tcgplayerId)}
                 onChange={(e) => handleFieldChange('tcgplayerId', e.target.value.trim() || null)}
                 className={`w-full bg-zinc-950/80 border rounded px-2 py-1 text-xs placeholder:text-zinc-600 focus:outline-none font-mono ${
-                  isTcgEmpty
+                  isDuplicateTcg
+                    ? 'border-rose-500/70 text-rose-300 bg-rose-950/30 focus:border-rose-400 font-semibold'
+                    : isTcgEmpty
                     ? 'border-amber-500/60 text-amber-300 focus:border-amber-400'
                     : 'border-zinc-800 text-zinc-200 focus:border-blue-500'
                 }`}

@@ -5,9 +5,7 @@ import { toText, cloneCard } from '../utils/cardUtils';
 import {
   Save,
   Code2,
-  Trash2,
   Image as ImageIcon,
-  Copy,
   CheckCircle2,
   ExternalLink,
   Layers
@@ -16,18 +14,16 @@ import {
 interface CardEditorProps {
   card: CardDocument | null;
   isDirty: boolean;
+  duplicateTcgSet?: Set<string>;
   onSave: (updated: CardDocument) => void;
-  onDelete: (cardId: string) => void;
-  onDuplicate: (card: CardDocument) => void;
   onOpenRawJson: () => void;
 }
 
 export const CardEditor: React.FC<CardEditorProps> = ({
   card,
   isDirty,
+  duplicateTcgSet,
   onSave,
-  onDelete,
-  onDuplicate,
   onOpenRawJson,
 }) => {
   const [formData, setFormData] = useState<CardDocument | null>(null);
@@ -89,15 +85,6 @@ export const CardEditor: React.FC<CardEditorProps> = ({
     });
   };
 
-  const handleRemoveVariant = (index: number) => {
-    setFormData((prev) => {
-      if (!prev) return null;
-      const variants = [...(prev.variants || [])];
-      variants.splice(index, 1);
-      return { ...prev, variants };
-    });
-  };
-
   const handleSaveClick = () => {
     if (!formData) return;
     onSave(formData);
@@ -139,25 +126,6 @@ export const CardEditor: React.FC<CardEditorProps> = ({
           >
             <Code2 className="w-3.5 h-3.5 text-blue-400" />
             <span>JSON</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => onDuplicate(formData)}
-            title="Duplicar esta carta como um novo documento"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium border border-zinc-700/60 transition-colors shadow-sm"
-          >
-            <Copy className="w-3.5 h-3.5 text-zinc-400" />
-            <span className="hidden sm:inline">Duplicar</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => onDelete(formData._id)}
-            title="Excluir carta definitivamente"
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-rose-950/30 hover:bg-rose-900/50 text-rose-300 text-xs font-medium border border-rose-900/40 transition-colors shadow-sm"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
           </button>
 
           <button
@@ -318,16 +286,21 @@ export const CardEditor: React.FC<CardEditorProps> = ({
               <p>Nenhuma variante cadastrada para esta carta.</p>
             </div>
           ) : (
-            formData.variants.map((variant, index) => (
-              <VariantEditor
-                key={`variant-${index}`}
-                variant={variant}
-                index={index + 1}
-                total={formData.variants!.length}
-                onChange={(updated) => handleVariantChange(index, updated)}
-                onRemove={() => handleRemoveVariant(index)}
-              />
-            ))
+            formData.variants.map((variant, index) => {
+              const tcgId = variant.tcgplayerId ? String(variant.tcgplayerId).trim() : '';
+              const isDuplicateTcg = Boolean(tcgId && duplicateTcgSet?.has(tcgId));
+
+              return (
+                <VariantEditor
+                  key={`variant-${index}`}
+                  variant={variant}
+                  index={index + 1}
+                  total={formData.variants!.length}
+                  isDuplicateTcg={isDuplicateTcg}
+                  onChange={(updated) => handleVariantChange(index, updated)}
+                />
+              );
+            })
           )}
         </div>
       </div>

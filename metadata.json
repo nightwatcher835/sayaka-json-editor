@@ -1,6 +1,8 @@
 {
-  "name": "Cardumy JSON Studio",
+  "name": "Sayaka JSON Editor",
   "description": "Editor e processador de alta performance para grandes arquivos JSON de coleções de cartas e variantes, com busca indexada, edição em massa e exportação otimizada.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }
