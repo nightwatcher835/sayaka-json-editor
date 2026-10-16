@@ -1,0 +1,6 @@
+{
+  "name": "Cardumy JSON Studio",
+  "description": "Editor e processador de alta performance para grandes arquivos JSON de coleções de cartas e variantes, com busca indexada, edição em massa e exportação otimizada.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
